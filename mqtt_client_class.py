@@ -7,7 +7,7 @@ import sys
 import time
 import RPi.GPIO as GPIO
 from Adafruit_IO import Client, Feed, RequestError
-
+ 
 # Import Adafruit IO MQTT client.
 from Adafruit_IO import MQTTClient
 
