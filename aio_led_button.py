@@ -10,12 +10,20 @@
 # Created by John Woolsey on 05/24/2019.
 # Copyright (c) 2019 Woolsey Workshop.  All rights reserved.
 
+# https://github.com/adafruit/Adafruit_IO_Python
+
 
 # Libraries
 import RPi.GPIO as GPIO
 from time import sleep
 from Adafruit_IO import Client, Feed, RequestError
+import json
 
+
+with open ('../secrets.json') as file:
+    secrets = json.load(file)
+
+print(secrets)
 
 # Pin Mapping
 button =   5
@@ -23,13 +31,13 @@ red_led = 21
 
 
 # Global Variables
-AIO_USERNAME    = "infrapale"
-AIO_KEY         = "e7b1e42d5a034d1f8e5c067bccebc937"
-AIO_BUTTON_FEED = "button"
-AIO_REDLED_FEED = "red-led"
+AIO_USERNAME    = secrets['AIO']['username']
+AIO_KEY         = secrets['AIO']['key']
+AIO_BUTTON_FEED = "home-tampere.button"
+AIO_REDLED_FEED = "home-tampere.led"
 button_state    = False
 red_led_state   = False
-
+#infrapale/feeds/home-tampere.button
 
 # Functions
 
@@ -72,19 +80,31 @@ except RequestError:  # or create red LED feed if it does not exist
    red_led_feed = aio.create_feed(Feed(name=AIO_REDLED_FEED))
 
 # Synchronize feed states
-button_state = True if aio.receive(button_feed.key).value == "1" else False
-red_led_state = True if aio.receive(red_led_feed.key).value == "ON" else False
+#button_state = True if aio.receive(button_feed.key).value == "1" else False
+#red_led_state = True if aio.receive(red_led_feed.key).value == "ON" else False
 GPIO.output(red_led, GPIO.HIGH if red_led_state else GPIO.LOW)
 
 print("Press CTRL-C to exit.")
 try:
    while True:
       # Retrieve and update LED state
-      red_led_state = True if aio.receive(red_led_feed.key).value == "ON" else False
-      GPIO.output(red_led, GPIO.HIGH if red_led_state else GPIO.LOW)
+    data = aio.receive(button_feed.key)
+    if int(data.value) == 1:
+        print('received <- ON\n')
+    elif int(data.value) == 0:
+        print('received <- OFF\n')
 
-      # Do not flood AIO with requests
-      sleep(0.5)
+    data = aio.receive(red_led_feed.key)
+    if int(data.value) == 1:
+        GPIO.output(red_led, GPIO.HIGH) 
+    elif int(data.value) == 0:
+        GPIO.output(red_led, GPIO.LOW )
+      
+        #red_led_state = True if aio.receive(red_led_feed.key).value == "ON" else False
+        #GPIO.output(red_led, GPIO.HIGH if red_led_state else GPIO.LOW)
+
+        # Do not flood AIO with requests
+        sleep(1.0)
 
 # Cleanup
 finally:           # exit cleanly when CTRL+C is pressed
