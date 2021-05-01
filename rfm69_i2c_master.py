@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 # https://www.abelectronics.co.uk/kb/article/1094/i2c-part-4---programming-i-c-with-python
+# https://www.engineersgarage.com/raspberrypi/articles-raspberry-pi-i2c-bus-pins-smbus-smbus2-python/
 
 
 def main():
@@ -41,18 +42,18 @@ def wr_i2c_vector( i2c_addr, cmd, data):
     # print('data=',data)
     
     while not all_done:
-         wr_bytes = I2C_BUF_LEN - 1
-         if (dindx + wr_bytes) >= data_len:
-             wr_bytes = data_len - dindx 
+        wr_bytes = I2C_BUF_LEN - 1
+        if (dindx + wr_bytes) >= data_len:
+            wr_bytes = data_len - dindx 
              
-         if wr_bytes > 0:
-             tx_buf = [dindx] + data[dindx:dindx + wr_bytes]
-             with SMBus(1) as bus:
-                 print(dindx, ': ', tx_buf)
-                 bus.write_i2c_block_data(i2c_addr, cmd, tx_buf)
-                 time.sleep(0.1)
-             dindx = dindx + wr_bytes  
-         else:
+        if wr_bytes > 0:
+            tx_buf = [dindx] + data[dindx:dindx + wr_bytes]
+            with SMBus(1) as txbus:
+                print(dindx, ': ', tx_buf)
+                txbus.write_i2c_block_data(i2c_addr, cmd, tx_buf)
+                time.sleep(0.1)
+            dindx = dindx + wr_bytes  
+        else:
             all_done = True
                  
                  
@@ -81,30 +82,87 @@ time.sleep(1)
 with SMBus(1) as bus:
     bus.write_byte_data(i2c_address, 0, RFM69_RESET)
 # i2cbus.write_i2c_block_data(i2c_address, RFM69_SEND_MSG, send_msg_int)
-tx_buf = [32] + send_msg_int[0:31]
-print(tx_buf)
+_tx_buf = [32] + send_msg_int[0:31]
+print(_tx_buf)
 print(send_msg_int)
 print(send_msg_int[0:31])
 print(send_msg_int[31:])
 #print(send_msg_int)
+
+
+
+
+
+while 1:
+    try:
+        time.sleep(0.5)
+        # with SMBus(1) as bus:
+        #    bus.write_byte_data(i2c_address, RFM69_SEND_MSG,0)
+        # time.sleep(0.5)    
+        with SMBus(1) as bus:    
+            rx_avail = bus.read_byte_data(i2c_address, RFM69_RX_AVAIL)
+            print('Rx Available = ',rx_avail)
+            if rx_avail > 0:
+                time.sleep(0.1)
+                try:
+                    rd_len = bus.read_i2c_block_data(i2c_address, RFM69_RX_LOAD_MSG, 1)
+                    print('rd_len=',rd_len)
+
+                except:
+                    print('LOAD_MSG Error')
+                time.sleep(0.5)
+                try:
+                    rd = bus.read_i2c_block_data(i2c_address, RFM69_RX_RD_MSG, 16)
+                    print('Read message',rd)
+                except:
+                    print('read block data failed')
+                
+                
+                
+    except:
+        buf[0] = 0
+        print('Error when writing to I2C')
+    # duration = i2cbus.read_byte(i2caddress)
+    #if buf[0] != 0:
+    i = i + 1
+    time.sleep(5)
+
+#  scratchpad   #######################################################################
 
 while 1:
     try:
         send_msg_int[-2] = (i & 0x7)+0x30
         # buf = i2cbus.read_i2c_block_data(i2caddress,RD_KEY_CMND,2)
         with SMBus(1) as bus:
-            # bus.write_byte_data(i2c_address, 0, RFM69_TX_FREE)
+            bus.write_byte_data(i2c_address, 0, RFM69_TX_FREE)
             tx_free = bus.read_byte_data(i2c_address, RFM69_TX_FREE)
         print('tx_free', tx_free)
         time.sleep(0.5)
         wr_i2c_vector( i2c_address, RFM69_TX_DATA, send_msg_int)
         time.sleep(0.5)
-        with SMBus(1) as bus:
-            bus.write_byte_data(i2c_address, RFM69_SEND_MSG,0)
-        time.sleep(0.5)    
+        # with SMBus(1) as bus:
+        #    bus.write_byte_data(i2c_address, RFM69_SEND_MSG,0)
+        # time.sleep(0.5)    
         with SMBus(1) as bus:    
             rx_avail = bus.read_byte_data(i2c_address, RFM69_RX_AVAIL)
-            print('Rx Available = ',rx_avail)
+            print('Rx Available = ', rx_avail)
+            if rx_avail > 0:
+                time.sleep(0.1)
+                print('Load and read message')
+                try:
+                    rd_len = bus.read_i2cIblock_data(i2c_address, RFM69_RX_LOAD_MSG, 1)
+                    print('rd_len=',rd_len)
+                except:
+                    print('LOAD_MSG Error')
+                time.sleep(0.5)
+                try:
+                    rd = bus.read_i2cIblock_data(i2c_address, RFM69_RX_RD_MSG, 16)
+                    print('Read message',rd)
+                except:
+                    print('read block data failed')
+                
+                
+                
     except:
         buf[0] = 0
         print('Error when writing to I2C')
