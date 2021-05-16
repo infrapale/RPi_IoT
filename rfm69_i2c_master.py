@@ -14,6 +14,7 @@ if __name__ == "__main__":
     main()
     
 from smbus2 import SMBus
+
 import time
 
 # i2cbus = SMBus(1)  # Create a new I2C bus
@@ -26,8 +27,9 @@ RFM69_SEND_MSG       = 0x10
 RFM69_TX_DATA        = 0x11
 RFM69_RX_AVAIL       = 0x40
 RFM69_RX_LOAD_MSG    = 0x41
-RFM69_RX_RD_MSG      = 0x42
-RFM69_RX_RD_LEN      = 0x43
+RFM69_RX_RD_MSG1     = 0x42
+RFM69_RX_RD_MSG2     = 0x43
+RFM69_RX_RD_LEN      = 0x44
 
 RFM69_TX_FREE        = 0x50
 
@@ -94,34 +96,53 @@ print(send_msg_int[31:])
  
 
 while 1:
+    print('- - - - - - - - - - - - - - - - - - - - - - - -')
     try:
         time.sleep(0.5)
         # with SMBus(1) as bus:
         #    bus.write_byte_data(i2c_address, RFM69_SEND_MSG,0)
         # time.sleep(0.5)    
-        with SMBus(1) as bus:    
-            rx_avail = bus.read_byte_data(i2c_address, RFM69_RX_AVAIL)
-            print('Rx Available = ',rx_avail)
+        with SMBus(1) as bus:
+            try:
+                rx_avail = bus.read_byte_data(i2c_address, RFM69_RX_AVAIL)
+                print('Rx Available = ',rx_avail)
+            except:
+                print('Failed when bus.read_byte_data')
             if rx_avail > 0:
-                time.sleep(0.1)
+                time.sleep(1)
                 try:
-                    rd_len = bus.read_i2c_block_data(i2c_address, RFM69_RX_LOAD_MSG, 1)
+                    rd_len = bus.read_byte_data(i2c_address, RFM69_RX_LOAD_MSG)
                     print('rd_len=',rd_len)
 
                 except:
                     print('LOAD_MSG Error')
                 time.sleep(0.5)
                 try:
-                    rd = bus.read_i2c_block_data(i2c_address, RFM69_RX_RD_MSG, 16)
-                    print('Read message',rd)
+                    rd = [0]*64
+                    rd1 = bus.read_i2c_block_data(i2c_address, RFM69_RX_RD_MSG1,32)
+                    # print('Read message',rd1)
+                    rd2 = bus.read_i2c_block_data(i2c_address, RFM69_RX_RD_MSG2, rd_len - 32)
+                    # print('Read message',rd2)
+                    rd = rd1 + rd2
+                    print(rd)
                 except:
-                    print('read block data failed')
-                
+                    print('read block data failed')                
                 
                 
     except:
         buf[0] = 0
         print('Error when writing to I2C')
+    x = 255    
+    for i in range(len(rd)):
+        if x == 0:
+            rd[i] = 0
+        elif rd[i] == 0:
+            x = 0
+        
+    b = bytes(rd)
+    print(b)
+    s = b.decode('UTF-8')
+    print(s)
     # duration = i2cbus.read_byte(i2caddress)
     #if buf[0] != 0:
     i = i + 1
