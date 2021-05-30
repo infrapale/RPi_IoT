@@ -16,6 +16,7 @@ if __name__ == "__main__":
 from smbus2 import SMBus
 
 import time
+import json
 
 # i2cbus = SMBus(1)  # Create a new I2C bus
 i2c_address = 0x20  # Address of keypad
@@ -33,6 +34,10 @@ RFM69_RX_RD_LEN      = 0x44
 
 RFM69_TX_FREE        = 0x50
 
+aio_dict = {'Dock_T_water': {'feed':'villaastrid.water-temp','value':0.0},
+            'Dock_T_bmp180': {'feed':'villaastrid.dock-temp','value':0.0}}
+
+print(aio_dict)
 
 def wr_i2c_vector( i2c_addr, cmd, data):
     dindx    = 0
@@ -96,59 +101,79 @@ print(send_msg_int[31:])
  
 
 while 1:
+    do_continue = True
     print('- - - - - - - - - - - - - - - - - - - - - - - -')
-    try:
-        time.sleep(0.5)
-        # with SMBus(1) as bus:
-        #    bus.write_byte_data(i2c_address, RFM69_SEND_MSG,0)
-        # time.sleep(0.5)    
+    if do_continue:
         with SMBus(1) as bus:
             try:
                 rx_avail = bus.read_byte_data(i2c_address, RFM69_RX_AVAIL)
                 print('Rx Available = ',rx_avail)
             except:
                 print('Failed when bus.read_byte_data')
-            if rx_avail > 0:
+                do_continue = False
+    if do_continue:
+        if rx_avail > 0:
+            with SMBus(1) as bus:
                 time.sleep(1)
                 try:
+                    rd_len = 0
                     rd_len = bus.read_byte_data(i2c_address, RFM69_RX_LOAD_MSG)
                     print('rd_len=',rd_len)
-
                 except:
+                    do_continue = False
                     print('LOAD_MSG Error')
-                time.sleep(0.5)
-                try:
-                    rd = [0]*64
-                    rd1 = bus.read_i2c_block_data(i2c_address, RFM69_RX_RD_MSG1,32)
-                    # print('Read message',rd1)
-                    rd2 = bus.read_i2c_block_data(i2c_address, RFM69_RX_RD_MSG2, rd_len - 32)
-                    # print('Read message',rd2)
-                    rd = rd1 + rd2
-                    print(rd)
-                except:
-                    print('read block data failed')                
+        else:
+            do_continue = False
+
+    if do_continue:
+        try:
+            with SMBus(1) as bus:
+                rd1 = [0]*32
+                rd2 = [0]*32
+                rd1 = bus.read_i2c_block_data(i2c_address, RFM69_RX_RD_MSG1,32)
+                # print('Read message',rd1)
+                rd2 = bus.read_i2c_block_data(i2c_address, RFM69_RX_RD_MSG2, rd_len - 32)
+                # print('Read message',rd2)
+                rd = rd1 + rd2
+                print(rd1)
+                print(rd2)
+                print(rd)
+                i = 0
+                while rd[i] != 0x00:
+                    i = i + 1
+                rd = rd[0:i]
+                print(rd)
                 
-                
-    except:
-        buf[0] = 0
-        print('Error when writing to I2C')
-    x = 255    
-    for i in range(len(rd)):
-        if x == 0:
-            rd[i] = 0
-        elif rd[i] == 0:
-            x = 0
+        except:    
+            do_continue = False
+            print('read block data failed')                
         
-    b = bytes(rd)
-    print(b)
-    s = b.decode('UTF-8')
-    print(s)
+                        
+    if do_continue:
+        x = 255
+        try:
+            for i in range(len(rd)):
+                if x == 0:
+                    rd[i] = 0
+                elif rd[i] == 0:
+                    x = 0
+            b = bytes(rd)
+            print(b)
+            s = b.decode('utf-8')
+            print(s)
+            
+            msg_dict = json.loads(s)
+            print('msg=',msg_dict)
+        except:
+            print('Error when preparing json: ',s)
     # duration = i2cbus.read_byte(i2caddress)
     #if buf[0] != 0:
-    i = i + 1
+    # i = i + 1
     time.sleep(5)
 
 #  scratchpad   #######################################################################
+
+# {"Z":"Dock","S":"P_bmp180","V":986.00,"R":""} 
 
 while 1:
     try:
