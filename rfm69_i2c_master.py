@@ -17,7 +17,26 @@ from smbus2 import SMBus
 
 import time
 import json
+import sys
+from Adafruit_IO import Client, Feed, RequestError
+ 
+# Import Adafruit IO MQTT client.
+from Adafruit_IO import MQTTClient
 
+#cwd = ("/"+__file__).rsplit('/', 1)[0] # the current working directory (where this file is)
+#sys.path.append(cwd)
+#print(cwd)
+sys.path.append('/home/pi/project/libraries')
+print(sys.path)
+
+
+try:
+    from MySecrets import secrets
+except ImportError:
+    print("My secrets are kept in secrets.py, please add them there!")
+    raise
+
+print('Secrets: ', secrets)
 # i2cbus = SMBus(1)  # Create a new I2C bus
 i2c_address = 0x20  # Address of keypad
 I2C_BUF_LEN = 16
@@ -34,10 +53,63 @@ RFM69_RX_RD_LEN      = 0x44
 
 RFM69_TX_FREE        = 0x50
 
-aio_dict = {'Dock_T_water': {'feed':'villaastrid.water-temp','value':0.0},
-            'Dock_T_bmp180': {'feed':'villaastrid.dock-temp','value':0.0}}
+MIN_UPLOAD_INTERVAL  = 60.0*5
+
+aio_dict = {'Dock_T_Water': {'feed':'villaastrid.water-temp','available': False, 'timeto': 0.0, 'value':0.0},
+            'Dock_T_bmp180': {'feed':'villaastrid.dock-temp','available': False, 'timeto': 0.0, 'value':0.0},
+            'Dock_P_bmp180': {'feed':'villaastrid.dock-pres','available': False, 'timeto': 0.0, 'value':0.0},
+            'Dock_T_dht22': {'feed':'villaastrid.outdoor1-temp-dht22','available': False, 'timeto': 0.0, 'value':0.0},
+            'Dock_H_dht22': {'feed':'villaastrid.dock-hum-dht22','available': False, 'timeto': 0.0, 'value':0.0},
+            'OD_1_Temp':  {'feed':'villaastrid.outdoor1-temp','available': False, 'timeto': 0.0, 'value':0.0},
+            'OD_1_Hum':  {'feed':'villaastrid.outdoor1-hum-dht22','available': False, 'timeto': 0.0, 'value':0.0},
+            'OD_1_P_mb':  {'feed':'villaastrid.outdoor1-pmb','available': False, 'timeto': 0.0, 'value':0.0},
+            'OD_1_Light1':  {'feed':'villaastrid.outdoor1-ldr1','available': False, 'timeto': 0.0, 'value':0.0},
+            'OD_1_Temp2': {'feed':'villaastrid.outdoor1-temp-dht22','available': False, 'timeto': 0.0,  'value':0.0}}
+for key in aio_dict:
+    aio_dict[key]['timeto'] = time.monotonic() 
+
+# {'Z': 'OD_1', 'S': 'Temp2', 'V': 17.17, 'R': ''}
+# {'Z': 'Dock', 'S': 'H_dht22', 'V': 99.9, 'R': ''}
+# {'Z': 'Dock', 'S': 'T_dht22', 'V': 18.2, 'R': ''}
+# {'Z': 'OD_1', 'S': 'P_mb', 'V': 1009.86, 'R': ''}
+# {'Z': 'OD_1', 'S': 'Hum', 'V': 67.5, 'R': ''}
+# {'Z': 'OD_1', 'S': 'Light1', 'V': '777', 'R': ''}
+# {'Z': 'Dock', 'S': 'P_bmp180', 'V': '990.0', 'R': ''}
+
 
 print(aio_dict)
+
+def upload_feed():
+    for key in aio_dict:
+        if aio_dict[key]['available']:
+            if time.monotonic() > aio_dict[key]['timeto']:
+                aio_dict[key]['timeto'] = time.monotonic() + MIN_UPLOAD_INTERVAL
+                aio_dict[key]['available'] = False
+                client.publish(aio_dict[key]['feed'], aio_dict[key]['value'])
+                print('Feed ', aio_dict[key]['feed'], ' uploaded')
+
+# Define callback functions which will be called when certain events happen.
+def connected(client):
+    # Connected function will be called when the client is connected to Adafruit IO.
+    # This is a good place to subscribe to feed changes.  The client parameter
+    # passed to this function is the Adafruit IO MQTT client so you can make
+    # calls against it easily.
+    print('Connected to Adafruit IO!  Listening for DemoFeed changes...')
+    # Subscribe to changes on a feed named DemoFeed.
+    client.subscribe('rpi-test.red-led')
+
+def disconnected(client):
+    # Disconnected function will be called when the client disconnects.
+    print('Disconnected from Adafruit IO!')
+    sys.exit(1)
+
+def message(client, feed_id, payload):
+    # Message function will be called when a subscribed feed has a new value.
+    # The feed_id parameter identifies the feed, and the payload parameter has
+    # the new value.
+    if feed_id == AIO_REDLED_FEED:
+        GPIO.output(red_led, GPIO.HIGH if payload == 'ON' else GPIO.LOW)
+        
 
 def wr_i2c_vector( i2c_addr, cmd, data):
     dindx    = 0
@@ -63,10 +135,19 @@ def wr_i2c_vector( i2c_addr, cmd, data):
         else:
             all_done = True
                  
-                 
-    
-
-print('Starting...')
+ 
+def save_measurement(m_dict):
+    global aio_dict
+    m_key = m_dict['Z'] + '_' + m_dict['S']
+    print(m_key)
+    if m_key in aio_dict:
+        print ('key found, AIO=',aio_dict[m_key])
+        aio_dict[m_key]['available'] = True
+        aio_dict[m_key]['value'] = m_dict['V']
+        
+    else:
+        print ('key not found')
+        print('Starting...')
 # send_msg = ['H','e','l','l','o', ' ','W','o','r','l','d','-','0','\0'  ]
 #                0         1         2         3         4         5         6
 #                0123456789012345678901234567890123456789012345678901234567890123456789
@@ -97,17 +178,29 @@ print(send_msg_int[31:])
 #print(send_msg_int)
 
 
+# Create an MQTT client instance.
+client = MQTTClient(secrets['aio_username'], secrets['aio_key'])
+
+# Setup the callback functions defined above.
+client.on_connect    = connected
+client.on_disconnect = disconnected
+client.on_message    = message
+
+# Connect to the Adafruit IO server.
+client.connect()
+client.loop_background()
+# Now send new values every 10 seconds.
 
  
 
 while 1:
     do_continue = True
-    print('- - - - - - - - - - - - - - - - - - - - - - - -')
+    # print('- - - - - - - - - - - - - - - - - - - - - - - -')
     if do_continue:
         with SMBus(1) as bus:
             try:
                 rx_avail = bus.read_byte_data(i2c_address, RFM69_RX_AVAIL)
-                print('Rx Available = ',rx_avail)
+                # print('Rx Available = ',rx_avail)
             except:
                 print('Failed when bus.read_byte_data')
                 do_continue = False
@@ -131,12 +224,8 @@ while 1:
                 rd1 = [0]*32
                 rd2 = [0]*32
                 rd1 = bus.read_i2c_block_data(i2c_address, RFM69_RX_RD_MSG1,32)
-                # print('Read message',rd1)
                 rd2 = bus.read_i2c_block_data(i2c_address, RFM69_RX_RD_MSG2, rd_len - 32)
-                # print('Read message',rd2)
                 rd = rd1 + rd2
-                print(rd1)
-                print(rd2)
                 print(rd)
                 i = 0
                 while rd[i] != 0x00:
@@ -164,55 +253,16 @@ while 1:
             
             msg_dict = json.loads(s)
             print('msg=',msg_dict)
+            save_measurement(msg_dict)
+            
         except:
             print('Error when preparing json: ',s)
     # duration = i2cbus.read_byte(i2caddress)
     #if buf[0] != 0:
     # i = i + 1
+    upload_feed()
     time.sleep(5)
 
 #  scratchpad   #######################################################################
 
 # {"Z":"Dock","S":"P_bmp180","V":986.00,"R":""} 
-
-while 1:
-    try:
-        send_msg_int[-2] = (i & 0x7)+0x30
-        # buf = i2cbus.read_i2c_block_data(i2caddress,RD_KEY_CMND,2)
-        with SMBus(1) as bus:
-            bus.write_byte_data(i2c_address, 0, RFM69_TX_FREE)
-            tx_free = bus.read_byte_data(i2c_address, RFM69_TX_FREE)
-        print('tx_free', tx_free)
-        time.sleep(0.5)
-        wr_i2c_vector( i2c_address, RFM69_TX_DATA, send_msg_int)
-        time.sleep(0.5)
-        # with SMBus(1) as bus:
-        #    bus.write_byte_data(i2c_address, RFM69_SEND_MSG,0)
-        # time.sleep(0.5)    
-        with SMBus(1) as bus:    
-            rx_avail = bus.read_byte_data(i2c_address, RFM69_RX_AVAIL)
-            print('Rx Available = ', rx_avail)
-            if rx_avail > 0:
-                time.sleep(0.1)
-                print('Load and read message')
-                try:
-                    rd_len = bus.read_i2cIblock_data(i2c_address, RFM69_RX_LOAD_MSG, 1)
-                    print('rd_len=',rd_len)
-                except:
-                    print('LOAD_MSG Error')
-                time.sleep(0.5)
-                try:
-                    rd = bus.read_i2cIblock_data(i2c_address, RFM69_RX_RD_MSG, 16)
-                    print('Read message',rd)
-                except:
-                    print('read block data failed')
-                
-                
-                
-    except:
-        buf[0] = 0
-        print('Error when writing to I2C')
-    # duration = i2cbus.read_byte(i2caddress)
-    #if buf[0] != 0:
-    i = i + 1
-    time.sleep(5)

@@ -23,8 +23,7 @@ except ImportError:
     print("My secrets are kept in secrets.py, please add them there!")
     raise
 
-print('Secrets: ')
-print(secrets)
+print('Secrets: ', secrets)
 
 # Pin Mapping
 button          = 5
