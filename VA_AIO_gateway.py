@@ -205,10 +205,33 @@ def read_rfm69_msg():
                     rd[i] = 0
                 elif rd[i] == 0:
                     x = 0
+        except:
+            do_continue = False
+            print('Error when fillin the vector with zero: ')
+
+    if do_continue:
+        try:
+            for i in range(len(rd)):
+                if rd[i] > 127:
+                    do_continue = false
+            if not do_continue:
+                print('Error illegalcharacters: ')    
+        except:
+            do_continue = False
+            print('Error when identifying illegal characters: ')
+
+    if do_continue:
+        try:
             b = bytes(rd)
             print(b)
             s = b.decode('utf-8')
             print(s)
+        except:
+            print('Error when decoding message: ')
+            do_continue = false
+            
+    if do_continue:
+        try:
             
             msg_dict = json.loads(s)
             print('msg=',msg_dict)
@@ -216,7 +239,7 @@ def read_rfm69_msg():
             
         except:
             print('Error when preparing json: ',s)
-
+    return do_continue
 
 # Create an MQTT client instance.
 client = MQTTClient(secrets['aio_username'], secrets['aio_key'])
@@ -233,9 +256,8 @@ client.loop_background()
 
 while 1:
     # read sensor messages and fill the dictionary with new values
-    read_rfm69_msg()
-    
-    upload_feed_to_aio()
+    if read_rfm69_msg():    
+        upload_feed_to_aio()
     
     time.sleep(5)
 
