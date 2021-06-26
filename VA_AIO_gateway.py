@@ -79,7 +79,8 @@ for key in aio_dict:
 
 print(aio_dict)
 
-def upload_feed():
+# check for new values and upload to AIO if min interval requirement is fulfilled
+def upload_feed_to_aio():
     for key in aio_dict:
         if aio_dict[key]['available']:
             if time.monotonic() > aio_dict[key]['timeto']:
@@ -151,47 +152,7 @@ def save_measurement(m_dict):
     else:
         print ('key not found')
         
-        
-# send_msg = ['H','e','l','l','o', ' ','W','o','r','l','d','-','0','\0'  ]
-#                0         1         2         3         4         5         6
-#                0123456789012345678901234567890123456789012345678901234567890123456789
-send_msg = list('Villa Astrid long message  over 32 0' + '\0')
-# send_msg = list('Villa Astrid  0' + '\0')
-print(send_msg)
-# send_msg = 'Villa Astrid 0' + '\0'
-send_msg_int = [ord(str) for str in send_msg]
-
-buf = [0,0]
-i = 0
-tx_free = 0
-time.sleep(1)
-with SMBus(1) as bus:
-    bus.write_byte_data(i2c_address, 0, RFM69_RESET)
-# i2cbus.write_i2c_block_data(i2c_address, RFM69_SEND_MSG, send_msg_int)
-_tx_buf = [32] + send_msg_int[0:31]
-print(_tx_buf)
-print(send_msg_int)
-print(send_msg_int[0:31])
-print(send_msg_int[31:])
-#print(send_msg_int)
-
-
-# Create an MQTT client instance.
-client = MQTTClient(secrets['aio_username'], secrets['aio_key'])
-
-# Setup the callback functions defined above.
-client.on_connect    = connected
-client.on_disconnect = disconnected
-client.on_message    = message
-
-# Connect to the Adafruit IO server.
-client.connect()
-client.loop_background()
-# Now send new values every 10 seconds.
-
- 
-
-while 1:
+def read_rfm69_msg():        
     do_continue = True
     # print('- - - - - - - - - - - - - - - - - - - - - - - -')
     if do_continue:
@@ -255,10 +216,27 @@ while 1:
             
         except:
             print('Error when preparing json: ',s)
-    # duration = i2cbus.read_byte(i2caddress)
-    #if buf[0] != 0:
-    # i = i + 1
-    upload_feed()
+
+
+# Create an MQTT client instance.
+client = MQTTClient(secrets['aio_username'], secrets['aio_key'])
+# Setup the callback functions defined above.
+client.on_connect    = connected
+client.on_disconnect = disconnected
+client.on_message    = message
+# Connect to the Adafruit IO server.
+client.connect()
+client.loop_background()
+# Now send new values every 10 seconds.
+
+ 
+
+while 1:
+    # read sensor messages and fill the dictionary with new values
+    read_rfm69_msg()
+    
+    upload_feed_to_aio()
+    
     time.sleep(5)
 
 #  scratchpad   #######################################################################
