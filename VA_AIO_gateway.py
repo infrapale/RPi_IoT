@@ -161,7 +161,7 @@ def read_rfm69_msg():
                 rx_avail = bus.read_byte_data(i2c_address, RFM69_RX_AVAIL)
                 # print('Rx Available = ',rx_avail)
             except:
-                print('Failed when bus.read_byte_data')
+                # print('Failed when bus.read_byte_data')
                 do_continue = False
     if do_continue:
         if rx_avail > 0:
@@ -207,7 +207,7 @@ def read_rfm69_msg():
                     x = 0
         except:
             do_continue = False
-            print('Error when fillin the vector with zero: ')
+            print('Error when filling the vector with zero: ')
 
     if do_continue:
         try:
@@ -253,13 +253,23 @@ client.loop_background()
 # Now send new values every 10 seconds.
 
  
-
+restart_time = time.monotonic() + 3600
 while 1:
     # read sensor messages and fill the dictionary with new values
+    #client.loop()
+    #if (time.time() - last) >= 5.0:
     if read_rfm69_msg():    
         upload_feed_to_aio()
+    if (time.monotonic() > restart_time):
+        print('Regular restart')
+        client.disconnect()
+        sys.exit(1)    
+    if not client.is_connected():
+        print('Not connected - restart')
+        sys.exit(1)    
+    last = time.time()
     
-    time.sleep(5)
+    #time.sleep(10)
 
 #  scratchpad   #######################################################################
 
